@@ -118,10 +118,20 @@ def main():
 
     # --- Step 10: Train Model ---
     print("\n🤖 STEP 10/11: Melatih model Machine Learning (dengan fitur CN)...")
-    from model.train_model import train_model
-    grid_gdf, model = train_model(grid_gdf)
-    # Simpan grid dengan prediksi
-    grid_gdf.to_file(PATH_GRID_FEAT, driver="GPKG")
+    try:
+        from model.train_model import train_model
+        grid_gdf, model = train_model(grid_gdf)
+        # Simpan grid dengan prediksi
+        grid_gdf.to_file(PATH_GRID_FEAT, driver="GPKG")
+    except Exception as e:
+        import traceback
+        print(f"\n❌ STEP 10 GAGAL: {type(e).__name__}: {e}")
+        print("=" * 60)
+        traceback.print_exc()
+        print("=" * 60)
+        print("Kolom GDF saat error:", list(grid_gdf.columns))
+        print("Jumlah baris:", len(grid_gdf))
+        raise
     memory_safe_continue("Setelah Step 10")
 
     # --- Step 11: Compute Population Density & Impact ---

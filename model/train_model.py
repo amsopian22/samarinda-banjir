@@ -148,18 +148,24 @@ def train_model(gdf):
 
         try:
             import xgboost as xgb
+            xgb_version = tuple(int(x) for x in xgb.__version__.split('.')[:2])
             print(f"[MODEL] XGBoost versi {xgb.__version__} terdeteksi")
-            clf = xgb.XGBClassifier(
+
+            # Parameter 'device' hanya tersedia di XGBoost >= 2.0
+            xgb_params = dict(
                 n_estimators=100,
                 max_depth=6,
                 learning_rate=0.1,
-                tree_method='hist',   # Hemat RAM
-                device='cpu',         # Paksa CPU (tidak semua runner punya GPU)
+                tree_method='hist',   # Hemat RAM di semua versi
                 random_state=42,
                 scale_pos_weight=(sum(y==0) / max(sum(y==1), 1)),
-                n_jobs=2,             # Aman untuk GitHub Actions runner (2 core)
+                n_jobs=2,
                 verbosity=0
             )
+            if xgb_version >= (2, 0):
+                xgb_params['device'] = 'cpu'  # Hanya di XGBoost >= 2.0
+
+            clf = xgb.XGBClassifier(**xgb_params)
             model_name = "XGBoost"
         except Exception as ex_xgb:
             print(f"[MODEL] ⚠️  XGBoost gagal: {ex_xgb}. Fallback ke RandomForest.")
