@@ -37,7 +37,11 @@ eggs/
 *.onnx
 *.pt
 *.pth
-model/
+# Folder model: kecualikan file biner besar, tapi SERTAKAN kode Python
+model/*.pkl
+model/*.joblib
+!model/train_model.py
+!model/__init__.py
 
 # ──────────────────────────────────────────────────────────
 # CACHE PIPELINE (file JSON sementara hasil scrape/API)
