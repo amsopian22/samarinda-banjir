@@ -1,0 +1,107 @@
+name: 🌊 Update Data Banjir Samarinda (Harian)
+
+on:
+  schedule:
+    # Pukul 06:00 WITA = 22:00 UTC hari sebelumnya
+    - cron: '0 22 * * *'
+  
+  # Izinkan trigger manual dari GitHub UI
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Alasan trigger manual'
+        required: false
+        default: 'Manual update'
+
+jobs:
+  update-flood-data:
+    name: Jalankan Pipeline & Export Data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── 1. Checkout repo ──────────────────────────────────
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Setup Python via Miniforge (ARM/x86 compatible) ──
+      - name: 🐍 Setup Python Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          python-version: '3.11'
+          auto-activate-base: false
+          activate-environment: flood_env
+
+      # ── 3. Install Geospatial Dependencies ──────────────────
+      - name: 📦 Install Dependencies Geospasial
+        shell: bash -el {0}
+        run: |
+          conda install -c conda-forge \
+            geopandas pyproj fiona rasterio \
+            numpy pandas scikit-learn joblib \
+            -y --quiet
+          pip install \
+            xgboost requests beautifulsoup4 \
+            osmnx psutil open-meteo-api-client \
+            --quiet
+
+      # ── 4. Persiapkan folder yang dibutuhkan pipeline ──────────────
+      - name: 📁 Persiapkan Struktur Folder Runtime
+        shell: bash -el {0}
+        run: |
+          # Folder-folder ini di-ignore oleh .gitignore
+          # (tidak ada di repo) tapi WAJIB ada saat pipeline berjalan
+          mkdir -p data/raw
+          mkdir -p data/processed
+          mkdir -p data/boundary
+          mkdir -p data/dem
+          mkdir -p model
+          mkdir -p output
+          mkdir -p cache
+          mkdir -p dashboard/public/data
+          echo "✅ Folder runtime siap!"
+
+      # ── 5. Jalankan Pipeline Prediksi Flood ──────────────────
+      - name: 🤖 Jalankan Pipeline XGBoost Flood Prediction
+        shell: bash -el {0}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          echo "Menjalankan pipeline prediksi banjir..."
+          python main.py
+          echo "Pipeline selesai!"
+
+      # ── 5. Ekspor ke JSON Statis untuk Vercel ───────────────
+      - name: 📤 Export GeoJSON Statis untuk Dashboard
+        shell: bash -el {0}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python scripts/export_static.py
+
+      # ── 6. Commit & Push data yang baru ─────────────────────
+      - name: 💾 Commit & Push Data Baru
+        run: |
+          git config --global user.name  "GitHub Actions Bot 🤖"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add dashboard/public/data/
+          
+          # Hanya commit jika ada perubahan
+          if git diff --staged --quiet; then
+            echo "Tidak ada perubahan data, skip commit."
+          else
+            TIMESTAMP=$(date +'%Y-%m-%d %H:%M WITA')
+            git commit -m "🌊 Auto-update data banjir · ${TIMESTAMP}"
+            git push
+            echo "✅ Data berhasil dipush ke repository!"
+          fi
+
+      # ── 7. (Opsional) Trigger Vercel Redeploy ──────────────
+      # Jika menggunakan Vercel Deploy Hook, uncomment dan isi secrets
+      # - name: 🚀 Trigger Vercel Redeploy
+      #   run: |
+      #     curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"

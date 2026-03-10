@@ -1,0 +1,2 @@
+source: opentopodata_api
+url: https://api.opentopodata.org/v1/srtm30m

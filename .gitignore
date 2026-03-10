@@ -1,0 +1,176 @@
+# ============================================================
+# .gitignore — Samarinda Flood Dashboard
+# ============================================================
+# Dibuat dengan kehati-hatian untuk:
+# 1. Menjaga keamanan (tidak ada API key / credentials)
+# 2. Menghindari file besar yang melampaui batas 100MB GitHub
+# 3. Menjaga repo tetap bersih dan ringan
+# ============================================================
+
+# ──────────────────────────────────────────────────────────
+# PYTHON - Cache & Bytecode
+# ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+
+# ──────────────────────────────────────────────────────────
+# FILE MODEL TERLATIH (besar, dilatih ulang oleh Actions)
+# ──────────────────────────────────────────────────────────
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+*.onnx
+*.pt
+*.pth
+model/
+
+# ──────────────────────────────────────────────────────────
+# CACHE PIPELINE (file JSON sementara hasil scrape/API)
+# ──────────────────────────────────────────────────────────
+cache/
+.cache/
+
+# ──────────────────────────────────────────────────────────
+# DATA RAW (file besar diunduh ulang oleh pipeline)
+# ──────────────────────────────────────────────────────────
+data/raw/
+data/cache/
+
+# File GeoPackage besar — dihasilkan ulang oleh pipeline
+# CATATAN: Boleh di-uncomment jika ukuran < 50MB dan ingin
+#          menyimpan di repo agar tidak perlu regenerasi
+data/processed/*.gpkg
+data/processed/*.shp
+data/processed/*.dbf
+data/processed/*.shx
+data/processed/*.prj
+data/processed/*.cpg
+data/processed/*.geojson
+
+# Raster besar
+data/processed/*.tif
+data/processed/*.tiff
+data/processed/*.img
+
+# ──────────────────────────────────────────────────────────
+# OUTPUT (dihasilkan ulang oleh pipeline)
+# ──────────────────────────────────────────────────────────
+output/
+!output/.gitkeep
+
+# ──────────────────────────────────────────────────────────
+# ENVIRONMENT & SECRETS ⚠️ PENTING: Jangan pernah commit ini!
+# ──────────────────────────────────────────────────────────
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+secrets.json
+config/secrets*.py
+*.key
+*.pem
+*.pfx
+
+# ──────────────────────────────────────────────────────────
+# NODE.JS / Vite / React
+# ──────────────────────────────────────────────────────────
+dashboard/node_modules/
+dashboard/.vite/
+dashboard/dist/
+dashboard/.env
+dashboard/.env.local
+node_modules/
+
+# ──────────────────────────────────────────────────────────
+# CONDA / Python Virtual Environment
+# ──────────────────────────────────────────────────────────
+.conda/
+conda-env/
+venv/
+.venv/
+env/
+ENV/
+
+# ──────────────────────────────────────────────────────────
+# LOG & TEMPORARY FILES
+# ──────────────────────────────────────────────────────────
+*.log
+*.out
+*.tmp
+*.temp
+tmp/
+/tmp/api_log.txt
+
+# ──────────────────────────────────────────────────────────
+# MACOS SYSTEM FILES
+# ──────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon?
+
+# ──────────────────────────────────────────────────────────
+# IDE & EDITOR
+# ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+*.sublime-workspace
+*.code-workspace
+
+# ──────────────────────────────────────────────────────────
+# NOTEBOOK CHECKPOINTS
+# ──────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ──────────────────────────────────────────────────────────
+# COVERAGE & TEST REPORTS
+# ──────────────────────────────────────────────────────────
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+.tox/
+
+# ──────────────────────────────────────────────────────────
+# CATATAN: File yang WAJIB dipush ke GitHub
+# ──────────────────────────────────────────────────────────
+# Pastikan file-file ini TIDAK ter-ignore:
+# ✅ dashboard/public/data/*.json   → Data statis untuk Vercel
+# ✅ scripts/export_static.py       → Script ekspor
+# ✅ .github/workflows/             → GitHub Actions
+# ✅ dashboard/src/**               → Kode React
+# ✅ *.py (pipeline)                → Kode Python
+# ✅ requirements.txt               → Dependencies Python
+# ✅ dashboard/package.json         → Dependencies Node
+
+# Force-include file JSON data statis (diperlukan Vercel!)
+!dashboard/public/data/
+!dashboard/public/data/*.json
