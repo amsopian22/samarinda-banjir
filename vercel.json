@@ -1,0 +1,12 @@
+{
+    "buildCommand": "cd dashboard && npm install --legacy-peer-deps && npm run build",
+    "outputDirectory": "dashboard/dist",
+    "installCommand": "echo 'install handled in buildCommand'",
+    "framework": null,
+    "rewrites": [
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ]
+}
