@@ -13,6 +13,15 @@ const IMPACT_COLOR = {
   Parah: { bg: 'rgba(239,68,68,0.2)', text: '#f87171', border: 'rgba(239,68,68,0.4)' },
 }
 
+// ── Tema Warna Probabilitas Banjir ──────────────────────
+const FLOOD_COLORS = {
+  safe: '#10b981',    // Aman/rendah risiko
+  low: '#3b82f6',     // Probabilitas batas bawah (0)
+  med: '#f59e0b',     // Probabilitas/risiko menengah (0.4)
+  high: '#f97316',    // Probabilitas/risiko tinggi (0.7)
+  critical: '#ef4444' // Probabilitas ekstrim/parah (1.0)
+}
+
 // ── Sumber data: file JSON statis di /public/data/ ──────────────────────
 // Di localhost: Vite akan serve dari dashboard/public/data/
 // Di Vercel production: CDN global serve dari /data/
@@ -45,7 +54,7 @@ function TooltipCard({ props }) {
   const prob = Math.round((p.p_flood_pred || 0) * 100)
   const impact = p.impact_category || 'Aman'
   const col = IMPACT_COLOR[impact] || IMPACT_COLOR.Aman
-  const probColor = prob >= 70 ? '#ef4444' : prob >= 40 ? '#f59e0b' : '#10b981'
+  const probColor = prob >= 70 ? FLOOD_COLORS.critical : prob >= 40 ? FLOOD_COLORS.med : FLOOD_COLORS.safe
   const elevation = p.elevation !== undefined ? `${p.elevation} m dpl` : '—'
   const slope = p.slope_deg !== undefined ? `${Number(p.slope_deg).toFixed(1)}°` : '—'
   const distRiver = p.dist_sungai_m !== undefined ? `${Math.round(p.dist_sungai_m)} m` : '—'
@@ -83,7 +92,7 @@ function TooltipCard({ props }) {
       <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '4px', height: '6px', marginBottom: '14px', overflow: 'hidden' }}>
         <div style={{
           width: `${prob}%`, height: '100%', borderRadius: '4px',
-          background: `linear-gradient(90deg, #3b82f6, ${probColor})`,
+          background: `linear-gradient(90deg, ${FLOOD_COLORS.low}, ${probColor})`,
           transition: 'width 0.5s ease'
         }} />
       </div>
@@ -128,34 +137,50 @@ function TooltipCard({ props }) {
 export default function App() {
   const mapRef = useRef()
   const [mapStyle, setMapStyle] = useState('dark')
-  const [gridData, setGridData] = useState(null)
-  const [riverData, setRiverData] = useState(null)
-  const [summary, setSummary] = useState(null)
-  const [weather, setWeather] = useState(null)
-  const [tma, setTma] = useState(null)
+  const [dataState, setDataState] = useState({
+    gridData: null,
+    riverData: null,
+    summary: null,
+    weather: null,
+    tma: null,
+    loading: true
+  })
+  const { gridData, riverData, summary, weather, tma, loading } = dataState
   const [hoveredCat, setHoveredCat] = useState(null)
-  const [loading, setLoading] = useState(true)
   const [tooltipInfo, setTooltipInfo] = useState(null) // { lng, lat, features }
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false) // Toggle for mobile bottom sheet
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [rGrid, rRiver, rSummary, rWeather, rTma] = await Promise.all([
+        const results = await Promise.allSettled([
           axios.get(DATA.grid),
           axios.get(DATA.sungai),
           axios.get(DATA.summary),
           axios.get(DATA.weather),
           axios.get(DATA.tma)
         ])
-        setGridData(rGrid.data)
-        setRiverData(rRiver.data)
-        setSummary(rSummary.data)
-        setWeather(rWeather.data)
-        setTma(rTma.data)
+        
+        // results[0] -> grid, [1] -> sungai, [2] -> summary, [3] -> weather, [4] -> tma
+        const newData = {}
+        if (results[0].status === 'fulfilled') newData.gridData = results[0].value.data
+        if (results[1].status === 'fulfilled') newData.riverData = results[1].value.data
+        if (results[2].status === 'fulfilled') newData.summary = results[2].value.data
+        if (results[3].status === 'fulfilled') newData.weather = results[3].value.data
+        if (results[4].status === 'fulfilled') newData.tma = results[4].value.data
+        
+        setDataState(prev => ({ ...prev, ...newData }))
+        
+        // Log warnings for failed requests
+        results.forEach((res, i) => {
+            if (res.status === 'rejected') {
+                console.warn(`Gagal memuat API ke-${i+1}:`, res.reason.message)
+            }
+        })
       } catch (err) {
-        console.warn('Data JSON belum tersedia, jalankan: python scripts/export_static.py', err.message)
+        console.error('Terjadi kesalahan tidak terduga saat fetch data:', err)
       } finally {
-        setLoading(false)
+        setDataState(prev => ({ ...prev, loading: false }))
       }
     }
     fetchAll()
@@ -192,7 +217,7 @@ export default function App() {
         15, 9
       ],
       'circle-color': ['interpolate', ['linear'], ['get', 'p_flood_pred'],
-        0, '#3b82f6', 0.4, '#f59e0b', 0.7, '#f97316', 1, '#ef4444'
+        0, FLOOD_COLORS.low, 0.4, FLOOD_COLORS.med, 0.7, FLOOD_COLORS.high, 1, FLOOD_COLORS.critical
       ],
       'circle-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0, 13, 0.88],
       'circle-stroke-width': ['case',
@@ -252,7 +277,7 @@ export default function App() {
         borderColor: 'rgba(99,102,241,0.3)',
         textStyle: { color: '#f0f4ff', fontSize: 12 }
       },
-      color: ['#10b981', '#f59e0b', '#f97316', '#ef4444'],
+      color: [FLOOD_COLORS.safe, FLOOD_COLORS.med, FLOOD_COLORS.high, FLOOD_COLORS.critical],
       series: [{
         type: 'pie',
         radius: ['48%', '72%'],
@@ -280,8 +305,23 @@ export default function App() {
 
   return (
     <div className="app-wrapper">
+      {/* Overlay Mobile */}
+      <div 
+        className={`mobile-overlay ${!isSidebarOpen ? 'hidden' : ''}`}
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
+      {/* Tombol FAB Toggle Data Mobile */}
+      <button 
+        className={`mobile-toggle-btn ${isSidebarOpen ? 'open' : ''}`}
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        title="Toggle Panel Data"
+      >
+        {isSidebarOpen ? '⬇️' : '📊'}
+      </button>
+
       {/* ============= SIDEBAR ============= */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : 'collapsed'}`}>
         {/* --- Header --- */}
         <div className="sidebar-header">
           <div className="brand-row">
@@ -370,57 +410,63 @@ export default function App() {
 
         {/* --- TMA Sungai --- */}
         <div className="section-label">Tinggi Muka Air Sungai (SIHKA)</div>
-        <div className="tma-cards">
-          {/* Mahakam */}
-          <div className="tma-card">
-            <div className="river-info">
-              <div className="river-name">🌊 Sungai Mahakam</div>
-              <div>
-                <span className="river-level" style={{ color: statusColor[mahakamTma?.status] || '#f0f4ff' }}>
-                  {mahakamTma?.level_m ?? '—'}
-                </span>
-                <span className="river-unit">m dpl</span>
-              </div>
-              <div className={`status-pill ${mahakamTma?.status || 'Normal'}`}>
-                {mahakamTma?.status || 'Normal'}
-              </div>
-            </div>
-            <div className="gauge" style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '10px', color: '#4f5b7c', marginBottom: '4px' }}>Siaga: {mahakamTma?.siaga_m}m</div>
-              <div className="gauge-bar">
-                <div className="gauge-fill" style={{
-                  width: `${Math.min((mahakamTma?.level_m || 0) / (mahakamTma?.siaga_m || 5) * 100, 100)}%`,
-                  background: `linear-gradient(90deg, #10b981, ${statusColor[mahakamTma?.status] || '#10b981'})`
-                }} />
-              </div>
-            </div>
+        {!tma ? (
+          <div className="tma-cards" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', color: '#94a3b8', fontSize: '13px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)' }}>
+            Data tidak tersedia
           </div>
+        ) : (
+          <div className="tma-cards">
+            {/* Mahakam */}
+            <div className="tma-card">
+              <div className="river-info">
+                <div className="river-name">🌊 Sungai Mahakam</div>
+                <div>
+                  <span className="river-level" style={{ color: statusColor[mahakamTma?.status] || '#f0f4ff' }}>
+                    {mahakamTma?.level_m ?? '—'}
+                  </span>
+                  <span className="river-unit">m dpl</span>
+                </div>
+                <div className={`status-pill ${mahakamTma?.status || 'Normal'}`}>
+                  {mahakamTma?.status || 'Normal'}
+                </div>
+              </div>
+              <div className="gauge" style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '10px', color: '#4f5b7c', marginBottom: '4px' }}>Siaga: {mahakamTma?.siaga_m}m</div>
+                <div className="gauge-bar">
+                  <div className="gauge-fill" style={{
+                    width: `${Math.min((mahakamTma?.level_m || 0) / (mahakamTma?.siaga_m || 5) * 100, 100)}%`,
+                    background: `linear-gradient(90deg, #10b981, ${statusColor[mahakamTma?.status] || '#10b981'})`
+                  }} />
+                </div>
+              </div>
+            </div>
 
-          {/* Karang Mumus */}
-          <div className="tma-card">
-            <div className="river-info">
-              <div className="river-name">🌿 Karang Mumus</div>
-              <div>
-                <span className="river-level" style={{ color: statusColor[karangTma?.status] || '#f0f4ff' }}>
-                  {karangTma?.level_m ?? '—'}
-                </span>
-                <span className="river-unit">m dpl</span>
+            {/* Karang Mumus */}
+            <div className="tma-card">
+              <div className="river-info">
+                <div className="river-name">🌿 Karang Mumus</div>
+                <div>
+                  <span className="river-level" style={{ color: statusColor[karangTma?.status] || '#f0f4ff' }}>
+                    {karangTma?.level_m ?? '—'}
+                  </span>
+                  <span className="river-unit">m dpl</span>
+                </div>
+                <div className={`status-pill ${karangTma?.status || 'Normal'}`}>
+                  {karangTma?.status || 'Normal'}
+                </div>
               </div>
-              <div className={`status-pill ${karangTma?.status || 'Normal'}`}>
-                {karangTma?.status || 'Normal'}
-              </div>
-            </div>
-            <div className="gauge" style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '10px', color: '#4f5b7c', marginBottom: '4px' }}>Siaga: {karangTma?.siaga_m}m</div>
-              <div className="gauge-bar">
-                <div className="gauge-fill" style={{
-                  width: `${Math.min((karangTma?.level_m || 0) / (karangTma?.siaga_m || 3) * 100, 100)}%`,
-                  background: `linear-gradient(90deg, #10b981, ${statusColor[karangTma?.status] || '#10b981'})`
-                }} />
+              <div className="gauge" style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '10px', color: '#4f5b7c', marginBottom: '4px' }}>Siaga: {karangTma?.siaga_m}m</div>
+                <div className="gauge-bar">
+                  <div className="gauge-fill" style={{
+                    width: `${Math.min((karangTma?.level_m || 0) / (karangTma?.siaga_m || 3) * 100, 100)}%`,
+                    background: `linear-gradient(90deg, #10b981, ${statusColor[karangTma?.status] || '#10b981'})`
+                  }} />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* --- Donut Chart Distribusi Dampak --- */}
         <div className="section-label">Distribusi Area Terdampak</div>

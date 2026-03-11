@@ -97,6 +97,7 @@ body {
   font-size: 16px;
   font-weight: 800;
   background: linear-gradient(90deg, #a5b4fc, #c4b5fd);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-transform: uppercase;
@@ -588,4 +589,132 @@ body {
 /* ====== SPACER ====== */
 .spacer {
   flex: 1;
+}
+
+/* ====== RESPONSIVE MOBILE (BOTTOM SHEET & FAB) ====== */
+/* Tombol FAB Toggle Data */
+.mobile-toggle-btn {
+  display: none;
+  position: absolute;
+  bottom: 25px;
+  right: 20px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border: none;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  z-index: 1500;
+  font-size: 24px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.3s ease;
+}
+
+.mobile-toggle-btn:active {
+  transform: scale(0.92);
+}
+
+.mobile-toggle-btn.open {
+  background: rgba(10, 15, 30, 0.85);
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+/* Overlay Transparan Belakang Sidebar */
+.mobile-overlay {
+  display: none;
+  position: absolute;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 990;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .app-wrapper {
+    flex-direction: column;
+  }
+
+  .mobile-toggle-btn {
+    display: flex;
+  }
+
+  .mobile-overlay {
+    display: block;
+  }
+
+  /* Bottom sheet style */
+  .sidebar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 75vh;
+    border-right: none;
+    border-top: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 24px 24px 0 0;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(10, 15, 30, 1) 100%);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.7);
+    transition: transform 0.4s cubic-bezier(0.3, 0.9, 0.4, 1);
+    z-index: 1000;
+    padding-top: 10px; /* Space untuk handle */
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+
+  /* Indikator Handle ditarik */
+  .sidebar::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+  }
+
+  .sidebar.collapsed {
+    transform: translateY(105%);
+  }
+
+  .sidebar.open {
+    transform: translateY(0);
+  }
+
+  /* Penyesuaian Komponen di Peta untuk layar sempit */
+  .map-headline {
+    width: 90%;
+    font-size: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: 12px;
+  }
+
+  .layer-switcher {
+    top: auto;
+    bottom: 100px;
+    right: 20px;
+    flex-direction: column;
+    padding: 8px;
+  }
+
+  .legend-box {
+    bottom: 100px;
+    right: auto;
+    left: 20px;
+    min-width: 180px;
+    padding: 10px 12px;
+  }
 }
