@@ -9,10 +9,18 @@ push ke GitHub, dan trigger Vercel Deploy Hook.
 
 Schedule: Setiap hari pukul 06:00 WITA (22:00 UTC sebelumnya)
 
-Setup Airflow Variables (via Web UI):
-  - flood_github_repo       : git@github.com:amsopian22/samarinda-banjir.git
-  - flood_conda_env         : flood_pipeline
-  - flood_vercel_deploy_hook: https://api.vercel.com/v1/integrations/deploy/prj_xxx/yyy
+PENDEKATAN: Persistent Clone
+  - Repo di-clone SEKALI ke PROJECT_DIR di server.
+  - Setiap run hanya melakukan `git pull` untuk update kode terbaru.
+  - Data cache, DEM, model dari run sebelumnya tetap tersimpan.
+
+SETUP AWAL (1x di server):
+  git clone git@github.com:amsopian22/samarinda-banjir.git /opt/samarinda-banjir
+
+Airflow Variables (via Web UI):
+  - flood_project_dir        : /opt/samarinda-banjir
+  - flood_conda_env           : flood_pipeline
+  - flood_vercel_deploy_hook  : https://api.vercel.com/v1/integrations/deploy/prj_xxx/yyy
 """
 
 from datetime import datetime, timedelta
@@ -21,10 +29,9 @@ from airflow.operators.bash import BashOperator
 from airflow.models import Variable
 
 # ── Konfigurasi ──────────────────────────────────────────────
-REPO_URL    = Variable.get("flood_github_repo", default_var="git@github.com:amsopian22/samarinda-banjir.git")
+PROJECT_DIR = Variable.get("flood_project_dir", default_var="/opt/samarinda-banjir")
 CONDA_ENV   = Variable.get("flood_conda_env", default_var="flood_pipeline")
 DEPLOY_HOOK = Variable.get("flood_vercel_deploy_hook", default_var="")
-WORK_DIR    = "/tmp/samarinda-banjir"
 
 default_args = {
     "owner":            "bidang4",
@@ -56,23 +63,23 @@ with DAG(
     max_active_runs=1,
 ) as dag:
 
-    # ── Task 1: Clone Repository ─────────────────────────────
-    clone_repo = BashOperator(
-        task_id="clone_repo",
+    # ── Task 1: Git Pull (Update Kode Terbaru) ───────────────
+    git_pull = BashOperator(
+        task_id="git_pull",
         bash_command=f"""
             set -e
-            echo "🔄 Membersihkan folder kerja lama..."
-            rm -rf {WORK_DIR}
+            cd {PROJECT_DIR}
 
-            echo "📥 Clone repository..."
-            git clone --depth 1 {REPO_URL} {WORK_DIR}
+            echo "🔄 Mengambil kode terbaru dari GitHub..."
+            git fetch origin main
+            git reset --hard origin/main
 
-            echo "📁 Menyiapkan struktur folder runtime..."
-            cd {WORK_DIR}
+            echo "📁 Memastikan struktur folder runtime..."
             mkdir -p data/raw data/processed data/boundary data/dem
             mkdir -p model output cache dashboard/public/data
 
-            echo "✅ Repository siap di {WORK_DIR}"
+            echo "✅ Repository up-to-date!"
+            echo "   Commit: $(git log -1 --oneline)"
         """,
     )
 
@@ -82,8 +89,8 @@ with DAG(
         bash_command=f"""
             set -e
             {CONDA_ACTIVATE}
-            cd {WORK_DIR}
-            export PYTHONPATH={WORK_DIR}
+            cd {PROJECT_DIR}
+            export PYTHONPATH={PROJECT_DIR}
 
             echo "🌊 Menjalankan pipeline XGBoost Flood Prediction..."
             python main.py
@@ -99,8 +106,8 @@ with DAG(
         bash_command=f"""
             set -e
             {CONDA_ACTIVATE}
-            cd {WORK_DIR}
-            export PYTHONPATH={WORK_DIR}
+            cd {PROJECT_DIR}
+            export PYTHONPATH={PROJECT_DIR}
 
             echo "📦 Mengekspor data ke JSON statis..."
             python scripts/export_static.py
@@ -116,7 +123,7 @@ with DAG(
         task_id="git_push",
         bash_command=f"""
             set -e
-            cd {WORK_DIR}
+            cd {PROJECT_DIR}
 
             git config user.name  "airflow-bot"
             git config user.email "airflow@103.152.244.71"
@@ -160,16 +167,5 @@ with DAG(
         """,
     )
 
-    # ── Task 6: Cleanup ──────────────────────────────────────
-    cleanup = BashOperator(
-        task_id="cleanup",
-        bash_command=f"""
-            echo "🧹 Membersihkan folder kerja..."
-            rm -rf {WORK_DIR}
-            echo "✅ Cleanup selesai!"
-        """,
-        trigger_rule="all_done",  # Jalankan meskipun task sebelumnya gagal
-    )
-
     # ── Task Dependencies ────────────────────────────────────
-    clone_repo >> run_pipeline >> export_json >> git_push >> trigger_vercel >> cleanup
+    git_pull >> run_pipeline >> export_json >> git_push >> trigger_vercel
