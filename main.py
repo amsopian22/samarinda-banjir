@@ -97,6 +97,8 @@ def main():
         # Simpan grid dengan prediksi
         grid_gdf.to_file(PATH_GRID_FEAT, driver="GPKG")
     except Exception as e:
+        print(f"\n❌ STEP 10 GAGAL: {e}")
+        raise e
 
     # --- Step 11: Compute Population Density & Impact ---
     print("\n👥 STEP 11/11: Menghitung kepadatan penduduk & skor dampak banjir...")
