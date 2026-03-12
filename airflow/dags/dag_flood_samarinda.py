@@ -1,35 +1,33 @@
 """
 dag_flood_samarinda.py
 ============================================================
-Airflow DAG: Pipeline Prediksi Banjir Samarinda
+Airflow DAG: Pipeline Prediksi Banjir Samarinda (DOCKER VERSION)
 ============================================================
-Menggantikan GitHub Actions workflow 'update_data.yml'.
-Menjalankan pipeline data harian, export JSON statis,
-push ke GitHub, dan trigger Vercel Deploy Hook.
+Menggunakan SSHOperator agar Airflow (di dalam Docker) bisa 
+menjalankan perintah di server Host (di mana Conda & GIS terpasang).
 
-Schedule: Setiap hari pukul 06:00 WITA (22:00 UTC sebelumnya)
-
-PENDEKATAN: Persistent Clone
-  - Repo di-clone SEKALI ke PROJECT_DIR di server.
-  - Setiap run hanya melakukan `git pull` untuk update kode terbaru.
-  - Data cache, DEM, model dari run sebelumnya tetap tersimpan.
-
-SETUP AWAL (1x di server):
-  git clone git@github.com:amsopian22/samarinda-banjir.git /opt/samarinda-banjir
-
-Airflow Variables (via Web UI):
-  - flood_project_dir        : /opt/samarinda-banjir
-  - flood_conda_env           : flood_pipeline
-  - flood_vercel_deploy_hook  : https://api.vercel.com/v1/integrations/deploy/prj_xxx/yyy
+Setup di Airflow Web UI:
+1. Admin > Connections > Add New:
+   - Conn Id: ssh_host_server
+   - Conn Type: SSH
+   - Host: 103.152.244.71 (atau host.docker.internal)
+   - Username: datains
+   - Port: 22
+   - Password / Private Key: (Sesuai akses server Anda)
+2. Admin > Variables:
+   - flood_project_dir: /home/datains/data-platform/samarinda-banjir
+   - flood_conda_env: flood_pipeline
+   - flood_vercel_deploy_hook: (URL dari Vercel)
 """
 
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.operators.bash import BashOperator
+from airflow.providers.ssh.operators.ssh import SSHOperator
 from airflow.models import Variable
 
 # ── Konfigurasi ──────────────────────────────────────────────
-PROJECT_DIR = Variable.get("flood_project_dir", default_var="/opt/samarinda-banjir")
+SSH_CONN_ID = "ssh_host_server"
+PROJECT_DIR = Variable.get("flood_project_dir", default_var="/home/datains/data-platform/samarinda-banjir")
 CONDA_ENV   = Variable.get("flood_conda_env", default_var="flood_pipeline")
 DEPLOY_HOOK = Variable.get("flood_vercel_deploy_hook", default_var="")
 
@@ -42,130 +40,104 @@ default_args = {
     "retry_delay":      timedelta(minutes=5),
 }
 
-# ── Helper: Aktivasi Conda ───────────────────────────────────
-# Sesuaikan path conda init dengan lokasi di server Anda.
-# Untuk miniconda: /opt/miniconda3 atau ~/miniconda3
+# ── Helper: Aktivasi Conda (di Server Host) ──────────────────
+# Sesuaikan path conda init jika berbeda di server host
 CONDA_ACTIVATE = f"""
     eval "$(conda shell.bash hook)" && \
     conda activate {CONDA_ENV}
 """
 
-# ── DAG Definition ───────────────────────────────────────────
 with DAG(
     dag_id="flood_samarinda_daily",
     default_args=default_args,
-    description="Pipeline harian prediksi banjir Samarinda + deploy ke Vercel",
-    # Pukul 06:00 WITA = 22:00 UTC hari sebelumnya
+    description="Pipeline harian via SSH ke Host Server",
     schedule_interval="0 22 * * *",
     start_date=datetime(2026, 3, 11),
     catchup=False,
-    tags=["flood", "samarinda", "geospatial", "daily"],
+    tags=["ssh", "docker", "samarinda", "daily"],
     max_active_runs=1,
 ) as dag:
 
-    # ── Task 1: Git Pull (Update Kode Terbaru) ───────────────
-    git_pull = BashOperator(
+    # ── Task 1: Git Pull ─────────────────────────────────────
+    git_pull = SSHOperator(
         task_id="git_pull",
-        bash_command=f"""
+        ssh_conn_id=SSH_CONN_ID,
+        command=f"""
             set -e
             cd {PROJECT_DIR}
-
-            echo "🔄 Mengambil kode terbaru dari GitHub..."
+            echo "🔄 Mengambil kode terbaru..."
             git fetch origin main
             git reset --hard origin/main
-
-            echo "📁 Memastikan struktur folder runtime..."
-            mkdir -p data/raw data/processed data/boundary data/dem
-            mkdir -p model output cache dashboard/public/data
-
-            echo "✅ Repository up-to-date!"
-            echo "   Commit: $(git log -1 --oneline)"
+            mkdir -p data/raw data/processed data/boundary data/dem model output cache dashboard/public/data
+            echo "✅ Repo updated: $(git log -1 --oneline)"
         """,
     )
 
-    # ── Task 2: Jalankan Pipeline Utama (main.py) ────────────
-    run_pipeline = BashOperator(
+    # ── Task 2: Jalankan Pipeline (main.py) ──────────────────
+    run_pipeline = SSHOperator(
         task_id="run_pipeline",
-        bash_command=f"""
+        ssh_conn_id=SSH_CONN_ID,
+        command=f"""
             set -e
             {CONDA_ACTIVATE}
             cd {PROJECT_DIR}
             export PYTHONPATH={PROJECT_DIR}
-
-            echo "🌊 Menjalankan pipeline XGBoost Flood Prediction..."
+            echo "🌊 Running pipeline..."
             python main.py
-
-            echo "✅ Pipeline selesai!"
         """,
-        execution_timeout=timedelta(minutes=25),
+        timeout=timedelta(minutes=25),
     )
 
     # ── Task 3: Export JSON Statis ────────────────────────────
-    export_json = BashOperator(
+    export_json = SSHOperator(
         task_id="export_json",
-        bash_command=f"""
+        ssh_conn_id=SSH_CONN_ID,
+        command=f"""
             set -e
             {CONDA_ACTIVATE}
             cd {PROJECT_DIR}
             export PYTHONPATH={PROJECT_DIR}
-
-            echo "📦 Mengekspor data ke JSON statis..."
+            echo "📦 Exporting JSON..."
             python scripts/export_static.py
-
-            echo "✅ Export selesai! File:"
-            ls -lh dashboard/public/data/
         """,
-        execution_timeout=timedelta(minutes=10),
+        timeout=timedelta(minutes=10),
     )
 
-    # ── Task 4: Git Push Data Baru ────────────────────────────
-    git_push = BashOperator(
+    # ── Task 4: Git Push ─────────────────────────────────────
+    git_push = SSHOperator(
         task_id="git_push",
-        bash_command=f"""
+        ssh_conn_id=SSH_CONN_ID,
+        command=f"""
             set -e
             cd {PROJECT_DIR}
-
-            git config user.name  "airflow-bot"
-            git config user.email "airflow@103.152.244.71"
-
+            git config user.name "airflow-bot"
+            git config user.email "airflow@server"
             git add dashboard/public/data/
-
             if git diff --staged --quiet; then
-                echo "ℹ️ Tidak ada perubahan data, skip commit."
+                echo "ℹ️ No changes."
             else
-                TIMESTAMP=$(date +'%Y-%m-%d %H:%M WITA')
-                git commit -m "Auto-update data banjir ${{TIMESTAMP}} [airflow]"
+                git commit -m "Auto-update data $(date +'%Y-%m-%d') [airflow-ssh]"
                 git push origin main
-                echo "✅ Data berhasil dipush ke GitHub!"
+                echo "✅ Pushed to GitHub!"
             fi
         """,
     )
 
     # ── Task 5: Trigger Vercel Deploy ─────────────────────────
+    # Task ini tetap BashOperator karena bisa dijalankan dari container (hanya curl)
+    from airflow.operators.bash import BashOperator
     trigger_vercel = BashOperator(
         task_id="trigger_vercel_deploy",
         bash_command=f"""
             set -e
             HOOK_URL="{DEPLOY_HOOK}"
-
             if [ -z "$HOOK_URL" ]; then
-                echo "⚠️ Vercel Deploy Hook belum dikonfigurasi."
-                echo "   Set Airflow Variable: flood_vercel_deploy_hook"
-                echo "   Skipping deploy trigger..."
+                echo "⚠️ Hook URL missing."
                 exit 0
             fi
-
-            echo "🚀 Triggering Vercel deploy..."
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{{http_code}}" -X POST "$HOOK_URL")
-
-            if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 201 ]; then
-                echo "✅ Vercel deploy berhasil di-trigger! (HTTP $HTTP_CODE)"
-            else
-                echo "❌ Vercel deploy gagal! HTTP status: $HTTP_CODE"
-                exit 1
-            fi
+            echo "🚀 Triggering Vercel..."
+            curl -X POST "$HOOK_URL"
         """,
     )
 
-    # ── Task Dependencies ────────────────────────────────────
     git_pull >> run_pipeline >> export_json >> git_push >> trigger_vercel
