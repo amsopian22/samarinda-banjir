@@ -153,12 +153,13 @@ export default function App() {
   useEffect(() => {
     const fetchAll = async () => {
       try {
+        const t = Date.now()
         const results = await Promise.allSettled([
-          axios.get(DATA.grid),
-          axios.get(DATA.sungai),
-          axios.get(DATA.summary),
-          axios.get(DATA.weather),
-          axios.get(DATA.tma)
+          axios.get(`${DATA.grid}?t=${t}`),
+          axios.get(`${DATA.sungai}?t=${t}`),
+          axios.get(`${DATA.summary}?t=${t}`),
+          axios.get(`${DATA.weather}?t=${t}`),
+          axios.get(`${DATA.tma}?t=${t}`)
         ])
         
         // results[0] -> grid, [1] -> sungai, [2] -> summary, [3] -> weather, [4] -> tma

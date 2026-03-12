@@ -112,13 +112,18 @@ with DAG(
             cd {PROJECT_DIR}
             git config user.name "airflow-bot"
             git config user.email "airflow@server"
-            git add dashboard/public/data/
+            
+            echo "📝 Staging changes in dashboard/public/data/..."
+            git add dashboard/public/data/*.json
+            
             if git diff --staged --quiet; then
-                echo "ℹ️ No changes."
+                echo "ℹ️ No changes to commit."
             else
-                git commit -m "Auto-update data $(date +'%Y-%m-%d') [airflow-ssh]"
+                echo "🚀 Committing and pushing changes..."
+                COMMIT_MSG="Auto-update data $(date +'%Y-%m-%d %H:%M') [airflow-ssh]"
+                git commit -m "$COMMIT_MSG"
                 git push origin main
-                echo "✅ Pushed to GitHub!"
+                echo "✅ Pushed to GitHub: $COMMIT_MSG"
             fi
         """,
     )
