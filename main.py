@@ -24,25 +24,7 @@ import os
 import time
 import psutil
 
-# --- Memory Guard ---
-def check_memory(label=""):
-    mem = psutil.virtual_memory()
-    used_gb = mem.used / (1024 ** 3)
-    avail_gb = mem.available / (1024 ** 3)
-    print(f"[RAM] {label}: Terpakai={used_gb:.2f}GB | Tersedia={avail_gb:.2f}GB")
-    return used_gb
-
-RAM_LIMIT_GB = 2.0
-
-def memory_safe_continue(step_name):
-    used = check_memory(step_name)
-    if used > RAM_LIMIT_GB:
-        print(f"[RAM] ⚠️  Penggunaan RAM ({used:.2f}GB) melewati {RAM_LIMIT_GB}GB.")
-        print("[RAM]     Memanggil garbage collector...")
-        import gc
-        gc.collect()
-        check_memory("Setelah GC")
-    return True
+# Memory guard functions removed as server has high specs (64GB RAM)
 
 
 # =============================================================
