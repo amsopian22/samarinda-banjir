@@ -14,38 +14,63 @@ Sistem ini memprediksi probabilitas genangan banjir di tiap titik sampling (grid
 Sistem berjalan dalam ekosistem hibrid:
 1.  **Server Utama (Backend & Processing):** 
     - Spesifikasi: 20 Core CPU, 64GB RAM.
-    - Fungsi: Menjalankan Apache Airflow untuk orkestrasi pipeline data, pelatihan model ML (XGBoost), dan pemrosesan GIS beresolusi tinggi.
+    - Fungsi: Menjalankan Apache Airflow untuk orkestrasi pipeline data, pelatihan model ML, dan pemrosesan GIS.
 2.  **GitHub (Data Bridge):** Menjadi jembatan sinkronisasi antara hasil proses di server dan dashboard.
-3.  **Vercel (Frontend):** Hosting dashboard berbasis React + MapLibre yang ringan dan cepat untuk akses publik/eksekutif.
+3.  **Vercel (Frontend):** Hosting dashboard berbasis React + MapLibre yang ringan dan cepat.
 
-## ✨ Novelty & Keunggulan (Apa yang Baru?)
+---
 
-Proyek ini memiliki beberapa aspek **Novelty** dibandingkan sistem pemantauan banjir standar:
+## 🤖 Machine Learning Implementation
 
-1.  **Hibrid Live Sensor & Weather API:** Menggabungkan data *live* Tinggi Muka Air (TMA) dari portal **SIHKA** (Sungai Mahakam & Karang Mumus) dengan data prediksi cuaca presisi dari **Open-Meteo**.
-2.  **High-Resolution Smart Grid:** Menggunakan analisis grid dengan kerapatan **200 meter** (mencakup >17.000 titik pantau). Ini memungkinkan deteksi risiko hingga ke level kelurahan dan blok bangunan.
-3.  **SCS Curve Number Integration:** Mengintegrasikan model hidrologi klasik (SCS-CN) dengan Machine Learning modern. Sistem secara otomatis mengambil data tutupan lahan (*land cover*) terbaru dari OpenStreetMap untuk menghitung koefisien resapan air tanah secara dinamis.
-4.  **Automated Daily Learning:** Pipeline Airflow tidak hanya memperbarui data, tapi juga melatih ulang (*re-train*) model XGBoost setiap ada perubahan parameter cuaca yang signifikan, memastikan prediksi tetap tajam.
-5.  **Executive-Ready Dashboard:** Desain premium dengan pendekatan *Data Journalism*, memberikan ringkasan naratif otomatis tentang jumlah populasi terdampak dan zonasi risiko.
+Proyek ini menggunakan pendekatan **Supervised Learning** dengan mekanisme *fallback* otomatis untuk menjamin ketersediaan prediksi meskipun terdapat kendala pada *library* tertentu di server.
 
-## 🛠️ Tech Stack
+### 1. Model Utama & Hierarki Fallback
+- **XGBoost (Primary):** Menggunakan metode `tree_method='hist'` untuk pemrosesan data grid besar secara cepat. Dioptimalkan dengan 8 cor CPU (parallel processing) untuk menjaga stabilitas server.
+- **Random Forest (Secondary):** Digunakan sebagai cadangan jika XGBoost gagal diinisialisasi. Memberikan hasil yang stabil melalui teknik *bagging*.
+- **Logistic Regression (Tertiary):** Model dasar (*baseline*) jika model ensemble tidak tersedia.
 
-- **Languange:** Python 3.12+ (Backend), JavaScript/React (Frontend)
-- **Data Engineering:** Apache Airflow, GeoPandas, Shapely
-- **Machine Learning:** XGBoost (Optimized Parallel Processing), Scikit-learn
-- **Spatial Data:** OSMnx, OpenTopoData (DEM), SIHKA (Web Scraping)
-- **Visualisasi:** MapLibre GL, ECharts, Axios (with Cache-Busting)
+### 2. Fitur Prediksi (Input Features)
+Setiap titik grid dianalisis berdasarkan 8 parameter kunci:
+- **Hidrologi Statis:** Elevasi (DEM), Kemiringan lereng (*Slope*), dan Jarak ke badan sungai (*Distance to River*).
+- **Karakteristik Tanah:** *Curve Number (CN)* yang diekstrak dari penggunaan lahan (*land cover*) OpenStreetMap.
+- **Dinamika Cuaca:** Curah hujan hari ini (*T*), serta akumulasi hujan 1 hari sebelumnya (*T-1*), 2 hari (*T-2*), dan 3 hari (*T-3*) untuk menghitung tingkat kejenuhan tanah.
 
-## 🔄 Alur Pipeline (Daily Workflow)
+### 3. Training & Labeling
+Karena ketiadaan label banjir historis real-time per titik, sistem menggunakan **Sigmoid Calibration Formula** yang diselaraskan dengan koefisien hidrologi lokal Samarinda untuk menghasilkan label target awal, yang kemudian dipelajari oleh model ML untuk generalisasi pola spasial.
 
-1.  **Data Extraction:** Mengambil batas wilayah, elevasi, land cover, tinggi sungai, dan curah hujan.
-2.  **Hydrological Modelling:** Menghitung *Slope*, *Distance to River*, dan *Curve Number (CN)*.
-3.  **Intelligence Layer:** Melatih model XGBoost menggunakan 8 core CPU server untuk memprediksi probabilitas banjir di 17.000+ titik.
-4.  **Static Export:** Mengonversi hasil spasial (GeoPackage) ke JSON statis yang ringan.
-5.  **Git-Sync & Deploy:** Melakukan *push* data ke GitHub secara otomatis dan memicu *Deployment Hook* di Vercel.
+---
+
+## 🔄 Tahapan Pipeline (Technical Stages)
+
+Pipeline orkestrasi di Apache Airflow menjalankan urutan tugas berikut secara otomatis setiap malam:
+
+1.  **📍 Batas Wilayah (Boundary Retrieval):** Mengambil data administratif terbaru dari API atau file lokal GeoJSON.
+2.  **🏔️ Topografi & GIS (Spatial Analysis):**
+    - Mendownload data elevasi dari OpenTopoData.
+    - Menghitung kemiringan lereng (*Slope*) per titik grid.
+    - Menghitung jarak Euclid setiap titik ke vektor sungai (OSM).
+3.  **🌦️ Cuaca & Hidrometri (Live Data):**
+    - Mengambil data curah hujan 4 hari terakhir dari Open-Meteo API.
+    - Melakukan *scrapping* tinggi muka air (TMA) Sungai Mahakam dan Karang Mumus dari portal SIHKA.
+4.  **🏙️ Karakteristik Lahan (Land Cover Analysis):** 
+    - Mengunduh data tutupan lahan OSMnx.
+    - Memetakan jenis lahan (hutan, pemukiman, aspal) ke nilai *SCS Curve Number*.
+5.  **🤖 Intelligence Layer (ML Execution):**
+    - Sinkronisasi data menjadi satu matriks fitur.
+    - Melatih model dan memprediksi probabilitas banjir di ~18.000 titik.
+6.  **📦 Data Serialization:** Mengonversi hasil prediksi GeoPandas ke file JSON statis untuk konsumsi frontend.
+7.  **📤 Deployment Sync:** Push otomatis ke GitHub dan pemicuan webhook Vercel untuk pembaruan dashboard.
+
+---
+
+## ✨ Novelty & Keunggulan
+- **Hibrid Live Sensor & Weather API.**
+- **High-Resolution Smart Grid (200m).**
+- **Automated Daily Re-training.**
+- **Integration of SCS-CN with ML.**
 
 ## 📊 Dashboard Access
-Kunjungi dashboard interaktif di: **[prediksi-banjir-samarinda.vercel.app](https://prediksi-banjir-samarinda.vercel.app/)**
+**[prediksi-banjir-samarinda.vercel.app](https://prediksi-banjir-samarinda.vercel.app/)**
 
 ---
 **Developed by:** Bidang 4 - Diskominfo Kota Samarinda
