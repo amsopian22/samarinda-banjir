@@ -119,25 +119,28 @@ def train_model(gdf):
         gdf = gdf.copy()
         gdf["p_flood"] = p_flood
 
-        # Threshold MEDIAN agar kelas selalu seimbang
-        threshold = np.median(p_flood)
+        # Gunakan threshold absolut agar persentase banjir dinamis sesuai cuaca,
+        # dan bukan median yang selalu memaksa 50% wilayah banjir setiap hari.
+        threshold = 0.55
         y = (p_flood >= threshold).astype(int)
 
+        # Pastikan minimal ada 5% sampel di kedua kelas agar model bisa dilatih
+        if sum(y==1) < len(y) * 0.05:
+            # Jika terlalu sedikit banjir (kering), ambil top 5%
+            threshold = np.percentile(p_flood, 95)
+            y = (p_flood >= threshold).astype(int)
+        elif sum(y==0) < len(y) * 0.05:
+            # Jika terlalu banyak banjir (badai parah), sisakan bottom 5%
+            threshold = np.percentile(p_flood, 5)
+            y = (p_flood >= threshold).astype(int)
+
         print(f"[MODEL] Dataset: {len(X)} sampel")
-        print(f"[MODEL] Threshold: {threshold:.4f}")
+        print(f"[MODEL] Threshold Final: {threshold:.4f}")
         print(f"[MODEL] Label distribusi: Aman={int(sum(y==0))}, Risiko={int(sum(y==1))}")
 
-        # Validasi: minimal harus ada 2 kelas
         unique_classes = np.unique(y)
-        if len(unique_classes) < 2:
-            print(f"[MODEL] ⚠️  Hanya ada 1 kelas ({unique_classes}). Memaksa distribusi 50/50...")
-            # Flip setengah label secara acak
-            np.random.seed(42)
-            flip_idx = np.random.choice(len(y), len(y)//2, replace=False)
-            y[flip_idx] = 1 - y[flip_idx]
-            unique_classes = np.unique(y)
-
         stratify_arg = y if len(unique_classes) > 1 else None
+        
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=stratify_arg
         )

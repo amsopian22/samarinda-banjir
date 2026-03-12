@@ -164,11 +164,21 @@ except Exception as e:
     print(f"   ❌ Gagal ambil cuaca: {e}")
 
 # ───────────────────────────────────────────────
-# 4. DATA TMA SUNGAI (Dummy / Fallback)
+# 4. DATA TMA SUNGAI (Dari GeoPackage Sebelumnya)
 # ───────────────────────────────────────────────
 print("\n[4/4] Menyusun data TMA sungai...")
 try:
-    from bs4 import BeautifulSoup
+    tma_mahakam = 2.30
+    tma_karang  = 1.80
+    
+    if 'gdf_sungai' in locals():
+        # Ambil langsung dari data spasial yang sudah diolah p04_fetch_river.py
+        mhk = gdf_sungai[gdf_sungai["name"].str.contains("Mahakam", case=False, na=False)]
+        krg = gdf_sungai[gdf_sungai["name"].str.contains("Karang", case=False, na=False)]
+        if not mhk.empty:
+            tma_mahakam = float(mhk["level_m"].mean())
+        if not krg.empty:
+            tma_karang = float(krg["level_m"].mean())
 
     def tma_status(level, siaga, waspada, normal):
         if level >= siaga:   return "Siaga"
@@ -176,36 +186,6 @@ try:
         if level >= normal:  return "Normal"
         return "Rendah"
 
-    def extract_float(cells):
-        for cell in cells:
-            try:
-                return float(cell.replace(",", "."))
-            except:
-                continue
-        return None
-
-    hdrs = {"User-Agent": "Mozilla/5.0"}
-    resp = requests.get("https://hidrologi.id/duga-air", headers=hdrs, timeout=15)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    tma_mahakam = None
-    tma_karang  = None
-    for row in soup.select("table tr"):
-        cells = [td.get_text(strip=True) for td in row.select("td")]
-        if len(cells) < 3:
-            continue
-        name  = cells[0].upper()
-        value = extract_float(cells)
-        if value is None:
-            continue
-        if "MAHAKAM" in name or "TENGGARONG" in name:
-            if tma_mahakam is None:
-                tma_mahakam = value
-        if "KARANG" in name or "MUANG" in name:
-            if tma_karang is None:
-                tma_karang = value
-
-    tma_mahakam = tma_mahakam or 2.30
-    tma_karang  = tma_karang  or 1.80
     tma_payload = {
         "mahakam": {
             "level_m": round(tma_mahakam, 2),
@@ -219,7 +199,8 @@ try:
         },
         "timestamp": date.today().isoformat()
     }
-except Exception:
+except Exception as e:
+    print(f"   ❌ Gagal menyusun data TMA: {e}")
     tma_payload = {
         "mahakam":      {"level_m": 2.30, "status": "Normal", "siaga_m": 5.0},
         "karang_mumus": {"level_m": 1.80, "status": "Normal", "siaga_m": 3.0},
