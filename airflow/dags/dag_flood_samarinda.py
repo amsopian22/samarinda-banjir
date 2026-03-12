@@ -119,9 +119,15 @@ with DAG(
             if git diff --staged --quiet; then
                 echo "ℹ️ No changes to commit."
             else
-                echo "🚀 Committing and pushing changes..."
+                echo "🚀 Committing changes..."
                 COMMIT_MSG="Auto-update data $(date +'%Y-%m-%d %H:%M') [airflow-ssh]"
                 git commit -m "$COMMIT_MSG"
+                
+                echo "🔄 Fetching and pulling with rebase to avoid conflicts..."
+                git fetch origin main
+                git rebase origin/main
+                
+                echo "📤 Pushing to GitHub..."
                 git push origin main
                 echo "✅ Pushed to GitHub: $COMMIT_MSG"
             fi
