@@ -175,6 +175,8 @@ def train_model(gdf):
 
         if clf is None:
             try:
+                from sklearn.ensemble import RandomForestClassifier
+                clf = RandomForestClassifier(
                     n_estimators=50, max_depth=6,
                     random_state=42, class_weight='balanced', n_jobs=8
                 )
