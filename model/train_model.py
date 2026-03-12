@@ -159,10 +159,10 @@ def train_model(gdf):
                 n_estimators=100,
                 max_depth=6,
                 learning_rate=0.1,
-                tree_method='hist',   # Hemat RAM di semua versi
+                tree_method='hist',
                 random_state=42,
                 scale_pos_weight=(sum(y==0) / max(sum(y==1), 1)),
-                n_jobs=2,
+                n_jobs=-1,
                 verbosity=0
             )
             if xgb_version >= (2, 0):
@@ -178,7 +178,7 @@ def train_model(gdf):
                 from sklearn.ensemble import RandomForestClassifier
                 clf = RandomForestClassifier(
                     n_estimators=50, max_depth=6,
-                    random_state=42, class_weight='balanced', n_jobs=2
+                    random_state=42, class_weight='balanced', n_jobs=-1
                 )
                 model_name = "RandomForest"
             except Exception as ex_rf:

@@ -25,10 +25,10 @@ BETA_3 = 0.0002 # Pengaruh jarak ke sungai (meter)
 FLOOD_THRESHOLD = 0.50  # >= 50% dianggap zona risiko tinggi
 
 # --- Grid Sampling ---
-GRID_SPACING_M = 300  # Jarak antar titik sampling dalam meter (dikurangi untuk hemat RAM di M3 8GB)
+GRID_SPACING_M = 100  # Jarak antar titik sampling ditingkatkan untuk resolusi tinggi (Server 20 CPU/64GB)
 
 # --- Threshold Memory Guard ---
-RAM_LIMIT_GB = 2.0  # Batas maksimum RAM sebelum switch ke sub-batch
+RAM_LIMIT_GB = 32.0  # Batas maksimum RAM ditingkatkan (Server 64GB)
 
 # --- Path Data ---
 PATH_BOUNDARY    = "data/boundary/samarinda.geojson"
