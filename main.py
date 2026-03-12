@@ -41,37 +41,31 @@ def main():
     print("\n📍 STEP 1/9: Mengambil batas administratif Samarinda...")
     from pipeline.p01_fetch_boundary import fetch_boundary
     fetch_boundary()
-    memory_safe_continue("Setelah Step 1")
 
     # --- Step 2: Verifikasi DEM ---
     print("\n🏔️  STEP 2/9: Memverifikasi sumber DEM...")
     from pipeline import p02_fetch_dem as fetch_dem_02
     fetch_dem_02.run()
-    memory_safe_continue("Setelah Step 2")
 
     # --- Step 3: Curah Hujan ---
     print("\n🌧️  STEP 3/9: Mengambil curah hujan hari ini...")
     from pipeline import p03_fetch_rainfall as fetch_rainfall_03
     rainfall_mm = fetch_rainfall_03.fetch_rainfall()
-    memory_safe_continue("Setelah Step 3")
 
     # --- Step 4: Data Sungai ---
     print("\n🏞️  STEP 4/10: Memuat vektor & live TMA sungai (Web Scrape)...")
     from pipeline import p04_fetch_river as fetch_river_04
     fetch_river_04.run()
-    memory_safe_continue("Setelah Step 4")
 
     # --- Step 5: Build Grid + Elevasi ---
     print("\n🗺️  STEP 5/9: Membangun grid sampling dan mengambil elevasi...")
     from pipeline import p07_build_grid as build_grid_07
     grid_gdf = build_grid_07.build_grid()
-    memory_safe_continue("Setelah Step 5")
 
     # --- Step 6: Compute Slope ---
     print("\n📐 STEP 6/9: Menghitung Slope dari data elevasi grid...")
     from pipeline import p05_compute_slope as compute_slope_05
     grid_gdf = compute_slope_05.compute_slope_from_elevation(grid_gdf)
-    memory_safe_continue("Setelah Step 6")
 
     # --- Step 7: Compute Distance to River ---
     print("\n📏 STEP 7/9: Menghitung jarak titik grid ke sungai...")
@@ -82,13 +76,11 @@ def main():
     grid_gdf = compute_distance_06.compute_distance_to_river(grid_gdf, river_gdf)
     # Simpan grid dengan semua fitur
     grid_gdf.to_file(PATH_GRID_FEAT, driver="GPKG")
-    memory_safe_continue("Setelah Step 7")
 
     # --- Step 8: Fetch Land Cover (OSM) ---
     print("\n🌳 STEP 8/11: Mengunduh data tutupan lahan (OSM) & memetakan Curve Number...")
     from pipeline import p09_fetch_landcover as fetch_landcover_09
     fetch_landcover_09.run()
-    memory_safe_continue("Setelah Step 8")
 
     # --- Step 9: Compute Curve Number (CN) ---
     print("\n🏙️ STEP 9/11: Menghitung skor SCS Curve Number pada tiap titik grid...")
@@ -96,7 +88,6 @@ def main():
     grid_path = compute_cn_10.run()
     if grid_path:
         grid_gdf = gpd.read_file(grid_path)
-    memory_safe_continue("Setelah Step 9")
 
     # --- Step 10: Train Model ---
     print("\n🤖 STEP 10/11: Melatih model Machine Learning (dengan fitur CN)...")
@@ -106,21 +97,11 @@ def main():
         # Simpan grid dengan prediksi
         grid_gdf.to_file(PATH_GRID_FEAT, driver="GPKG")
     except Exception as e:
-        import traceback
-        print(f"\n❌ STEP 10 GAGAL: {type(e).__name__}: {e}")
-        print("=" * 60)
-        traceback.print_exc()
-        print("=" * 60)
-        print("Kolom GDF saat error:", list(grid_gdf.columns))
-        print("Jumlah baris:", len(grid_gdf))
-        raise
-    memory_safe_continue("Setelah Step 10")
 
     # --- Step 11: Compute Population Density & Impact ---
     print("\n👥 STEP 11/11: Menghitung kepadatan penduduk & skor dampak banjir...")
     from pipeline import p08_compute_impact as compute_impact_08
     compute_impact_08.compute_density_and_impact()
-    memory_safe_continue("Setelah Step 11")
 
     # --- Step 12: Generate Peta Heatmap ---
     print("\n🗺️  SELESAI: Menghasilkan peta heatmap interaktif Samarinda...")
