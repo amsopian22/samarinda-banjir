@@ -18,6 +18,45 @@ Sistem berjalan dalam ekosistem hibrid:
 2.  **GitHub (Data Bridge):** Menjadi jembatan sinkronisasi antara hasil proses di server dan dashboard.
 3.  **Vercel (Frontend):** Hosting dashboard berbasis React + MapLibre yang ringan dan cepat.
 
+## 📊 Workflow Diagram
+Berikut adalah visualisasi alur kerja otomatisasi sistem dari pengambilan data hingga publikasi dashboard:
+
+```mermaid
+graph TD
+    subgraph "Data Acquisition (External APIs)"
+        A1[Open-Meteo: Rainfall]
+        A2[SIHKA: River TMA]
+        A3[OpenTopoData: DEM/Elevation]
+        A4[OpenStreetMap: Land Cover]
+    end
+
+    subgraph "Server Processing (Apache Airflow)"
+        B1[Geospatial Analysis: Slope, Distance, CN Score]
+        B2[Feature Engineering & Matrix Sync]
+        B3[ML Training: XGBoost / Random Forest]
+        B4[Prediction: Probability Mapping]
+        B1 --> B2
+        B2 --> B3
+        B3 --> B4
+    end
+
+    subgraph "Serialization & Sync"
+        C1[Export Static JSON]
+        C2[Git Push to GitHub]
+    end
+
+    subgraph "Frontend (Vercel)"
+        D1[React Dashboard]
+        D2[Interactive MapLibre Heatmap]
+    end
+
+    A1 & A2 & A3 & A4 --> B1
+    B4 --> C1
+    C1 --> C2
+    C2 --> D1
+    D1 --> D2
+```
+
 ---
 
 ## 🤖 Machine Learning Implementation
