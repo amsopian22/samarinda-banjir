@@ -73,4 +73,4 @@ Pipeline orkestrasi di Apache Airflow menjalankan urutan tugas berikut secara ot
 **[prediksi-banjir-samarinda.vercel.app](https://prediksi-banjir-samarinda.vercel.app/)**
 
 ---
-**Developed by:** Bidang 4 - Diskominfo Kota Samarinda
+**Developed by:** Ahmad Sopian - Data Scientist / Data Engineering - Diskominfo Kota Samarinda
