@@ -18,11 +18,11 @@ from config import (
     PATH_GRID_FEAT, PATH_MODEL
 )
 
-# Bobot tambahan
+# Bobot tambahan (Disesuaikan untuk nilai absolut mm)
 BETA_5    = 0.5    # CN (Curve Number) — beton/kota = risiko naik
-BETA_LAG_1 = 0.3  # Hujan kemarin
-BETA_LAG_2 = 0.15 # Hujan 2 hari lalu
-BETA_LAG_3 = 0.05 # Hujan 3 hari lalu
+BETA_LAG_1 = 0.04  # Hujan kemarin (absolute mm)
+BETA_LAG_2 = 0.02  # Hujan 2 hari lalu
+BETA_LAG_3 = 0.01  # Hujan 3 hari lalu
 
 
 def sigmoid(x):
@@ -67,10 +67,10 @@ def generate_target_labels(gdf):
         return (arr - arr.mean()) / (std if std > 1e-6 else 1.0)
 
     logit = (BETA_0
-             + BETA_1    * zscore(rain_0)
-             + BETA_LAG_1 * zscore(rain_1)
-             + BETA_LAG_2 * zscore(rain_2)
-             + BETA_LAG_3 * zscore(rain_3)
+             + BETA_1    * rain_0
+             + BETA_LAG_1 * rain_1
+             + BETA_LAG_2 * rain_2
+             + BETA_LAG_3 * rain_3
              - BETA_2    * zscore(elev)
              - BETA_3    * zscore(dist)
              + 0.3       * (-zscore(slop))
@@ -119,19 +119,23 @@ def train_model(gdf):
         gdf = gdf.copy()
         gdf["p_flood"] = p_flood
 
-        # Gunakan threshold absolut agar persentase banjir dinamis sesuai cuaca,
-        # dan bukan median yang selalu memaksa 50% wilayah banjir setiap hari.
-        threshold = 0.55
+        # Gunakan threshold absolut dari config agar persentase banjir dinamis sesuai cuaca.
+        from config import FLOOD_THRESHOLD
+        threshold = FLOOD_THRESHOLD
         y = (p_flood >= threshold).astype(int)
 
-        # Pastikan minimal ada 5% sampel di kedua kelas agar model bisa dilatih
-        if sum(y==1) < len(y) * 0.05:
-            # Jika terlalu sedikit banjir (kering), ambil top 5%
-            threshold = np.percentile(p_flood, 95)
-            y = (p_flood >= threshold).astype(int)
-        elif sum(y==0) < len(y) * 0.05:
-            # Jika terlalu banyak banjir (badai parah), sisakan bottom 5%
-            threshold = np.percentile(p_flood, 5)
+        # Hitung jumlah titik risiko tinggi
+        n_pos = int(sum(y==1))
+        print(f"[MODEL] Titik risiko tinggi (P >= {threshold}): {n_pos} dari {len(y)}")
+
+        # Jika kondisi sangat kering (tidak ada area risiko), gunakan dummy 1% untuk kestabilan training
+        # atau tetap biarkan apa adanya jika kita ingin model memprediksi 0.
+        # Namun XGBoost butuh minimal 2 kelas untuk dilatih dengan stratify.
+        if n_pos < 10:
+            print("[MODEL] ⚠️  Kondisi sangat kering. Melakukan kalibrasi minimal.")
+            # Ambil hanya sedikit titik (misal top 0.5%) agar model tahu mana area 'paling' rawan
+            # tapi tidak sampai mendominasi dashboard sebagai banjir.
+            threshold = np.percentile(p_flood, 99.5)
             y = (p_flood >= threshold).astype(int)
 
         print(f"[MODEL] Dataset: {len(X)} sampel")

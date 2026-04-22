@@ -16,8 +16,8 @@ CRS_UTM     = "EPSG:32750"   # WGS84 / UTM Zone 50S - untuk analisis spasial Sam
 
 # --- Parameter Model Prediksi ---
 # Koefisien sigmoids: P(Flood) = sigmoid(b0 + b1*Rain - b2*Elev - b3*Dist)
-BETA_0 = 0.5    # Bias / intercept
-BETA_1 = 0.08   # Pengaruh curah hujan (mm)
+BETA_0 = -3.5   # Baseline logit (P ≈ 0.03 saat tidak hujan)
+BETA_1 = 0.12   # Pengaruh curah hujan absolut (mm). 30mm rain -> P ≈ 0.5
 BETA_2 = 0.03   # Pengaruh elevasi (meter)
 BETA_3 = 0.0002 # Pengaruh jarak ke sungai (meter)
 
